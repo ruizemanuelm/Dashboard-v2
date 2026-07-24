@@ -1,3 +1,6 @@
+// ⚠️ ARCHIVO DESHABILITADO EN MODO DEMO
+// La autenticación de Supabase ya no se usa
+
 import { createBrowserClient } from '@supabase/ssr';
 
 export function createClient() {

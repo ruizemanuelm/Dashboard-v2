@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
-const BASE_URL = 'https://api.ocularyb.com.ar/api/v1';
-const TOKEN    = process.env.NEXT_PUBLIC_OCULARYB_TOKEN ?? '';
+// ⚠️ RUTA DESHABILITADA EN MODO DEMO
+// Este endpoint ya no se usa - la aplicación utiliza datos mock
+
+const BASE_URL = 'https://api.example.com/api/v1';
+const TOKEN    = process.env.NEXT_PUBLIC_API_TOKEN ?? '';
 
 // ── EXCEL (activo) ────────────────────────────────────────────────────────────
 

@@ -1,3 +1,6 @@
+// ⚠️ ARCHIVO DESHABILITADO EN MODO DEMO
+// La autenticación de Supabase ya no se usa
+
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 

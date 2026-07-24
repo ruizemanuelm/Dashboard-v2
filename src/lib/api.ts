@@ -1,22 +1,7 @@
-const BASE_URL = 'https://api.ocularyb.com.ar/api/v1';
-const TOKEN = process.env.NEXT_PUBLIC_OCULARYB_TOKEN ?? '';
+// API deshabilitada para demo - se usan datos mock
+import { getMockData } from './mockData';
 
-const authHeaders = {
-  'Authorization': `Bearer ${TOKEN}`,
-  'Content-Type': 'application/json',
-};
-
-// ─── IDs REALES DE SUCURSALES ─────────────────────────────────────────────────
-export const BRANCH_IDS = {
-  norte:      'e9487193-3b74-4a5a-92ac-83518d67f66c',  // BARRIO NORTE  (code: BN)
-  sur:        'e8e1395f-31ca-4091-900c-2ad1b7af42b3',  // BARRIO SUR    (code: BS)
-  anexo:      '6fd4921e-dba2-4447-ad7d-44ed57d59afe',  // ANEXO         (code: AN)
-  yerbaBuena: '9a3a6329-5c4e-4019-8b31-032ff4554caa',  // YERBA BUENA   (code: YB)
-} as const;
-
-export type BranchApiKey = keyof typeof BRANCH_IDS;
-
-// ─── TIPOS REALES DE LA API ───────────────────────────────────────────────────
+// ─── TIPOS PARA LA DEMO ───────────────────────────────────────────────────────
 
 export interface AdmissionResponse {
   generalAdmissionId: string;
@@ -124,38 +109,27 @@ export function isNewPatient(adm: AdmissionResponse['admission']): boolean {
   return adm.admissionType?.code === 'NO_APPOINTMENT';
 }
 
-// ─── FETCH ADMISIONES (proxy via /api/admissions que parsea el Excel completo) ─
+// ─── FETCH ADMISIONES (usa datos mock para demo) ──────────────────────────────
 export async function fetchAdmissions(startDate: string, endDate: string): Promise<AdmissionResponse[]> {
-  const params = new URLSearchParams({ startDate, endDate });
-  const res = await fetch(`/api/admissions?${params}`);
-  if (!res.ok) throw new Error(`Error ${res.status} al cargar admisiones`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  // Simular delay de red
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const mockData = getMockData(startDate, endDate);
+  return mockData.admissions;
 }
 
-// ─── FETCH SLOTS ──────────────────────────────────────────────────────────────
+// ─── FETCH SLOTS (usa datos mock para demo) ───────────────────────────────────
 export async function fetchSlots(startDate: string, endDate: string): Promise<AppointmentSlotResponse[]> {
-  const params = new URLSearchParams({ startDate, endDate });
-  const res = await fetch(`/api/appointment-slots?${params}`);
-  if (!res.ok) throw new Error(`Error ${res.status} al cargar turnos`);
-  const data = await res.json();
-  return Array.isArray(data) ? data : (data.data ?? data.slots ?? []);
+  // Simular delay de red
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const mockData = getMockData(startDate, endDate);
+  return mockData.slots;
 }
 
-// ─── EXCEL DOWNLOAD vía proxy Next.js (evita CORS) ───────────────────────────
+// ─── EXCEL DOWNLOAD deshabilitado para demo ───────────────────────────────────
 export async function downloadExcel(startDate: string, endDate: string): Promise<void> {
-  const params = new URLSearchParams({ startDate, endDate });
-  const res = await fetch(`/api/admissions/download?${params}`);
-  if (!res.ok) throw new Error(`Error ${res.status} al descargar reporte`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `admisiones-${startDate}-${endDate}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // En demo no descargamos nada real
+  await new Promise(resolve => setTimeout(resolve, 800));
+  alert('Descarga de Excel deshabilitada en modo demo');
 }
 
 // ─── KPIs CALCULADOS ──────────────────────────────────────────────────────────

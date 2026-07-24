@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import '../app/globals.css';
 import {
   fetchAdmissions, fetchSlots, downloadExcel,
@@ -44,9 +42,7 @@ export default function Dashboard() {
 }
 
 function DashboardContent() {
-  const router = useRouter();
   const [selected,    setSelected]   = useState<BranchKey>('general');
-  const [signingOut,  setSigningOut] = useState(false);
   const [dateFrom,    setDateFrom]   = useState(monthStartStr);
   const [dateTo,      setDateTo]     = useState(todayStr);
   const [pendingFrom, setPendingFrom] = useState(monthStartStr);
@@ -210,15 +206,16 @@ function DashboardContent() {
       <aside className="sidebar">
         <div className="logo-area">
           <div className="sidebar-logo-wrap">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/logo-ocularyb.png"
-              alt="OcularYB"
-              className="sidebar-logo"
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
+            <div style={{ 
+              fontSize: '1.5rem', 
+              fontWeight: 700, 
+              color: '#dfefee',
+              fontFamily: 'var(--font-display)',
+              textAlign: 'center'
+            }}>
+              Sistema Demo
+            </div>
           </div>
-          {/* <div className="logo-sub">Panel de Gestión</div> */}
         </div>
 
         <div className="nav-section-label">Sucursales</div>
@@ -292,27 +289,6 @@ function DashboardContent() {
               {downloadError}
             </p>
           )}
-          <button
-            disabled={signingOut}
-            onClick={async () => {
-              setSigningOut(true);
-              const supabase = createClient();
-              await supabase.auth.signOut();
-              router.push('/login');
-            }}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.2)', borderRadius: 8, padding: '8px 12px', color: '#f87191', cursor: signingOut ? 'not-allowed' : 'pointer', fontSize: '0.85rem', width: '100%', opacity: signingOut ? 0.7 : 1 }}
-          >
-            {signingOut ? (
-              <span style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(248,113,145,0.35)', borderTopColor: '#f87191', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
-            )}
-            {signingOut ? 'Cerrando sesión...' : 'Cerrar sesión'}
-          </button>
         </div>
       </aside>
 
@@ -344,7 +320,7 @@ function DashboardContent() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
             <div className="period-badge">
               <span className="period-dot" style={{ background: error ? '#f43f5e' : '#B8BD45' }} />
-              {loading ? 'Cargando...' : error ? 'Error de conexión' : 'Datos en tiempo real'}
+              {loading ? 'Cargando...' : error ? 'Error de conexión' : 'Modo demo con datos de prueba'}
             </div>
             <div className="view-tabs">
               <button className={`view-tab ${view === 'dashboard' ? 'active' : ''}`}
@@ -708,13 +684,14 @@ function LoadingScreen() {
       background: 'linear-gradient(135deg, #001a19 0%, #002725 60%, #003330 100%)',
       gap: '1.5rem',
     }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/logo-ocularyb.png"
-        alt="OcularYB"
-        style={{ height: 52, opacity: 0.85 }}
-        onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-      />
+      <div style={{ 
+        fontSize: '2rem', 
+        fontWeight: 700, 
+        color: '#dfefee',
+        fontFamily: 'var(--font-display)'
+      }}>
+        Sistema Demo
+      </div>
       <div style={{
         width: 40, height: 40, borderRadius: '50%',
         border: '3px solid rgba(255,255,255,0.08)',
@@ -722,7 +699,7 @@ function LoadingScreen() {
         animation: 'spin 0.8s linear infinite',
       }} />
       <div style={{ fontSize: '0.82rem', color: 'rgba(223,239,238,0.45)', letterSpacing: '0.04em' }}>
-        Cargando datos...
+        Cargando datos de prueba...
       </div>
     </div>
   );
