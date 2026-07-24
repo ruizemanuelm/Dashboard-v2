@@ -9,11 +9,18 @@ import {
   computeSlotsByBranch, computeDoctorStats,
   type BranchKPIs, type AdmissionResponse, type DoctorStats,
 } from '@/lib/api';
+import {
+  getMockSurgeryData, getMockCashData,
+  type MockSurgery, type MockCashMovement,
+} from '@/lib/mockModules';
 import { branches, branchOrder, activeBranches, type BranchKey } from '@/lib/data';
 import {
   IconUsers, IconUserPlus, IconCalendarOff,
   IconMinus, IconCalendarCheck, IconDownload, IconRefresh,
   IconArrowUpRight, IconChevronUp, IconChevronDown, IconSelector,
+  IconScissors, IconCash, IconTrendingUp, IconTrendingDown,
+  IconMenu2, IconX, IconChartPie, IconStethoscope,
+  IconClipboardList, IconCreditCard,
 } from '@tabler/icons-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -32,9 +39,11 @@ const EMPTY_KPI: BranchKPIs = {
   turnosRechazados: 0, ausentes: 0, derivaciones: 0,
 };
 
-type View = 'dashboard' | 'medicos';
+type View = 'menu' | 'dashboard' | 'medicos' | 'cirugia' | 'caja';
 type AgendaSortCol = 'hora' | 'paciente' | 'medico' | 'tipo' | 'estado' | 'sucursal' | 'dni' | 'obraSocial';
 type DocSortCol = Exclude<keyof DoctorStats, 'obrasSociales'>;
+type SurgerySortCol = 'fecha' | 'paciente' | 'cirujano' | 'tipoCirugia' | 'estado' | 'sucursal';
+type CashSortCol = 'fecha' | 'tipo' | 'concepto' | 'monto' | 'metodoPago' | 'sucursal';
 interface SortState<C extends string> { col: C | null; dir: 'asc' | 'desc'; }
 
 export default function Dashboard() {
@@ -54,10 +63,15 @@ function DashboardContent() {
   const [error,       setError]      = useState<string | null>(null);
   const [downloading,    setDownloading]    = useState(false);
   const [downloadError,  setDownloadError]  = useState<string | null>(null);
-  const [view,           setView]           = useState<View>('dashboard');
+  const [view,           setView]           = useState<View>('menu');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [agendaSort,  setAgendaSort] = useState<SortState<AgendaSortCol>>({ col: null, dir: 'asc' });
   const [docSort,       setDocSort]       = useState<SortState<DocSortCol>>({ col: 'atendidos', dir: 'desc' });
   const [expandedDoctor, setExpandedDoctor] = useState<string | null>(null);
+  const [surgeries, setSurgeries] = useState<MockSurgery[]>([]);
+  const [cashMovements, setCashMovements] = useState<MockCashMovement[]>([]);
+  const [surgerySort, setSurgerySort] = useState<SortState<SurgerySortCol>>({ col: null, dir: 'asc' });
+  const [cashSort, setCashSort] = useState<SortState<CashSortCol>>({ col: null, dir: 'asc' });
 
   const loadAll = useCallback(async (from: string, to: string) => {
     setLoading(true);
@@ -70,6 +84,10 @@ function DashboardContent() {
       setKpiMap(computeKPIs(adms));
       setSlotsMap(computeSlotsByBranch(slots));
       setAllAdms(adms);
+      
+      // Cargar datos de cirugía y caja
+      setSurgeries(getMockSurgeryData(from, to));
+      setCashMovements(getMockCashData(from, to));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error desconocido');
     } finally {
@@ -98,6 +116,16 @@ function DashboardContent() {
     setDocSort(prev => prev.col === col
       ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
       : { col, dir: col === 'nombre' ? 'asc' : 'desc' });
+
+  const toggleSurgerySort = (col: SurgerySortCol) =>
+    setSurgerySort(prev => prev.col === col
+      ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { col, dir: 'asc' });
+
+  const toggleCashSort = (col: CashSortCol) =>
+    setCashSort(prev => prev.col === col
+      ? { col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { col, dir: col === 'monto' ? 'desc' : 'asc' });
 
   const isGeneral = selected === 'general';
   const meta      = branches[selected];
@@ -171,6 +199,28 @@ function DashboardContent() {
     doctorStats.slice(0, 12).map(d => ({ name: d.nombre, atendidos: d.atendidos }))
   , [doctorStats]);
 
+  const sortedSurgeries = useMemo(() => {
+    if (!surgerySort.col) return surgeries;
+    return [...surgeries].sort((a, b) => {
+      const va = String(a[surgerySort.col!] ?? '');
+      const vb = String(b[surgerySort.col!] ?? '');
+      const cmp = va.localeCompare(vb, 'es', { numeric: true });
+      return surgerySort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [surgeries, surgerySort]);
+
+  const sortedCashMovements = useMemo(() => {
+    if (!cashSort.col) return cashMovements;
+    return [...cashMovements].sort((a, b) => {
+      const va = a[cashSort.col!];
+      const vb = b[cashSort.col!];
+      const cmp = typeof va === 'number'
+        ? (va as number) - (vb as number)
+        : String(va).localeCompare(String(vb), 'es', { numeric: true });
+      return cashSort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [cashMovements, cashSort]);
+
   const pieData = isGeneral
     ? activeBranches.map(key => ({
         name:  branches[key].shortName,
@@ -196,29 +246,97 @@ function DashboardContent() {
     return Object.entries(counts).sort((a, b) => b[1] - a[1]);
   }, [allAdms, isGeneral, meta]);
 
+  // Gráficos de Caja
+  const cashByCategory = useMemo(() => {
+    const ingresos: Record<string, number> = {};
+    const egresos: Record<string, number> = {};
+    cashMovements.forEach(m => {
+      if (m.tipo === 'ingreso') {
+        ingresos[m.categoria] = (ingresos[m.categoria] || 0) + m.monto;
+      } else {
+        egresos[m.categoria] = (egresos[m.categoria] || 0) + m.monto;
+      }
+    });
+    return { ingresos, egresos };
+  }, [cashMovements]);
+
+  const cashByMethod = useMemo(() => {
+    const counts: Record<string, number> = {};
+    cashMovements.filter(m => m.tipo === 'ingreso').forEach(m => {
+      counts[m.metodoPago] = (counts[m.metodoPago] || 0) + m.monto;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [cashMovements]);
+
+  const cashTrend = useMemo(() => {
+    const daily: Record<string, { ingresos: number; egresos: number }> = {};
+    cashMovements.forEach(m => {
+      if (!daily[m.fecha]) daily[m.fecha] = { ingresos: 0, egresos: 0 };
+      if (m.tipo === 'ingreso') {
+        daily[m.fecha].ingresos += m.monto;
+      } else {
+        daily[m.fecha].egresos += m.monto;
+      }
+    });
+    return Object.entries(daily)
+      .map(([fecha, data]) => ({ fecha, ...data }))
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
+  }, [cashMovements]);
+
   const chartColor = isGeneral ? '#147D78' : meta.color;
 
   if (loading && allAdms.length === 0) return <LoadingScreen />;
 
   return (
     <div className="layout-root">
+      {/* Mobile menu toggle */}
+      <button 
+        className="mobile-menu-toggle"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle menu"
+      >
+        {sidebarOpen ? <IconX size={24} /> : <IconMenu2 size={24} />}
+      </button>
+
+      {/* Overlay para cerrar sidebar en mobile */}
+      {sidebarOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* SIDEBAR */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <div className="logo-area">
-          <div className="sidebar-logo-wrap">
+          <button 
+            onClick={() => { setView('menu'); setSidebarOpen(false); }}
+            className="sidebar-logo-wrap"
+            style={{ 
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              width: '100%',
+              padding: 0
+            }}
+          >
             <div style={{ 
               fontSize: '1.5rem', 
               fontWeight: 700, 
               color: '#dfefee',
               fontFamily: 'var(--font-display)',
-              textAlign: 'center'
-            }}>
+              textAlign: 'center',
+              transition: 'transform 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
               Sistema Demo
             </div>
-          </div>
+          </button>
         </div>
 
-        <div className="nav-section-label">Sucursales</div>
+        <div style={{ marginTop: '1rem' }} className="nav-section-label">Sucursales</div>
         {branchOrder.map(key => {
           const b = branches[key];
           const count = loading ? '…'
@@ -294,16 +412,25 @@ function DashboardContent() {
 
       {/* MAIN */}
       <main className="main-content">
-        <div className="page-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-            <div>
-              <div className="page-eyebrow">Panel de gestión</div>
-              <h1 className="page-title">
-                {isGeneral ? 'Dashboard ' : 'Sucursal '}
-                <span>{isGeneral ? 'General' : meta.name}</span>
-              </h1>
-            </div>
-            <div className="date-range-row">
+        {view !== 'menu' && (
+          <div className="page-header">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <div className="page-eyebrow">Panel de gestión</div>
+                <h1 className="page-title">
+                  {view === 'dashboard' && (isGeneral ? 'Dashboard ' : 'Sucursal ')}
+                  {view === 'medicos' && 'Estadísticas de '}
+                  {view === 'cirugia' && 'Módulo de '}
+                  {view === 'caja' && 'Módulo de '}
+                  <span>
+                    {view === 'dashboard' && (isGeneral ? 'General' : meta.name)}
+                    {view === 'medicos' && 'Médicos'}
+                    {view === 'cirugia' && 'Cirugías'}
+                    {view === 'caja' && 'Caja'}
+                  </span>
+                </h1>
+              </div>
+              <div className="date-range-row">
               <span className="date-range-label">Desde</span>
               <input type="date" className="date-input" value={pendingFrom} max={pendingTo}
                 onChange={e => setPendingFrom(e.target.value)} />
@@ -322,18 +449,94 @@ function DashboardContent() {
               <span className="period-dot" style={{ background: error ? '#f43f5e' : '#B8BD45' }} />
               {loading ? 'Cargando...' : error ? 'Error de conexión' : 'Modo demo con datos de prueba'}
             </div>
-            <div className="view-tabs">
-              <button className={`view-tab ${view === 'dashboard' ? 'active' : ''}`}
-                onClick={() => setView('dashboard')}>Dashboard</button>
-              <button className={`view-tab ${view === 'medicos' ? 'active' : ''}`}
-                onClick={() => setView('medicos')}>Médicos</button>
-            </div>
+            {view === 'caja' && (
+              <div style={{ 
+                fontSize: '0.75rem', 
+                background: 'rgba(251, 146, 60, 0.1)', 
+                border: '1px solid rgba(251, 146, 60, 0.3)', 
+                borderRadius: 6, 
+                padding: '4px 12px',
+                color: '#fb923c',
+                fontWeight: 600
+              }}>
+                ⚠️ DATOS DE PRUEBA - NO REALES
+              </div>
+            )}
           </div>
         </div>
+        )}
 
-        {error && (
+        {error && view !== 'menu' && (
           <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: 12, padding: '0.65rem 1rem', color: '#991b1b', fontSize: '0.82rem', flexShrink: 0 }}>
             ⚠ {error}
+          </div>
+        )}
+
+        {/* ── MENÚ INICIAL ── */}
+        {view === 'menu' && (
+          <div className="menu-container">
+            <div className="menu-header">
+              <h1 className="menu-title">Selecciona un módulo</h1>
+              <p className="menu-subtitle">Sistema de gestión con datos de demostración</p>
+            </div>
+
+            <div className="modules-grid">
+              <button 
+                className="module-card module-dashboard"
+                onClick={() => setView('dashboard')}
+              >
+                <div className="module-icon">
+                  <IconChartPie size={48} />
+                </div>
+                <h3 className="module-name">Dashboard</h3>
+                <p className="module-description">Vista general de KPIs, estadísticas y gráficos de actividad</p>
+                <div className="module-arrow">→</div>
+              </button>
+
+              <button 
+                className="module-card module-medicos"
+                onClick={() => setView('medicos')}
+              >
+                <div className="module-icon">
+                  <IconStethoscope size={48} />
+                </div>
+                <h3 className="module-name">Médicos</h3>
+                <p className="module-description">Estadísticas por profesional, atenciones y derivaciones</p>
+                <div className="module-arrow">→</div>
+              </button>
+
+              <button 
+                className="module-card module-cirugia"
+                onClick={() => setView('cirugia')}
+              >
+                <div className="module-icon">
+                  <IconScissors size={48} />
+                </div>
+                <h3 className="module-name">Cirugías</h3>
+                <p className="module-description">Programación y seguimiento de intervenciones quirúrgicas</p>
+                <div className="module-arrow">→</div>
+              </button>
+
+              <button 
+                className="module-card module-caja"
+                onClick={() => setView('caja')}
+              >
+                <div className="module-icon">
+                  <IconCash size={48} />
+                </div>
+                <h3 className="module-name">Caja</h3>
+                <p className="module-description">Movimientos financieros, ingresos y egresos</p>
+                <div className="module-badge">Datos de prueba</div>
+                <div className="module-arrow">→</div>
+              </button>
+            </div>
+
+            <div className="menu-footer">
+              <div className="menu-info">
+                <IconClipboardList size={20} />
+                <span>Todos los datos mostrados son ficticios y generados para demostración</span>
+              </div>
+            </div>
           </div>
         )}
 
@@ -586,6 +789,313 @@ function DashboardContent() {
             </div>
           </div>
         )}
+
+        {/* ── CIRUGÍA VIEW ── */}
+        {view === 'cirugia' && (
+          <div className="chart-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem', flexShrink: 0 }}>
+              <div>
+                <div className="chart-title">Cirugías programadas y realizadas</div>
+                <div className="chart-sub">{loading ? 'Cargando...' : `${surgeries.length} cirugías en el período`}</div>
+              </div>
+            </div>
+            
+            {/* KPIs de Cirugía */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 12, padding: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: 600, marginBottom: '0.5rem' }}>PROGRAMADAS</div>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#0284c7' }}>
+                  {surgeries.filter(s => s.estado === 'programada').length}
+                </div>
+              </div>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600, marginBottom: '0.5rem' }}>FINALIZADAS</div>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#16a34a' }}>
+                  {surgeries.filter(s => s.estado === 'finalizada').length}
+                </div>
+              </div>
+              <div style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 12, padding: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#92400e', fontWeight: 600, marginBottom: '0.5rem' }}>EN CURSO</div>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#d97706' }}>
+                  {surgeries.filter(s => s.estado === 'en-curso').length}
+                </div>
+              </div>
+              <div style={{ background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 12, padding: '1rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#991b1b', fontWeight: 600, marginBottom: '0.5rem' }}>CANCELADAS</div>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: '#dc2626' }}>
+                  {surgeries.filter(s => s.estado === 'cancelada').length}
+                </div>
+              </div>
+            </div>
+
+            <div className="table-scroll">
+              <table className="turnos-table">
+                <thead>
+                  <tr>
+                    <SurgSortTh col="fecha" sort={surgerySort} onSort={toggleSurgerySort}>Fecha / Hora</SurgSortTh>
+                    <SurgSortTh col="paciente" sort={surgerySort} onSort={toggleSurgerySort}>Paciente</SurgSortTh>
+                    <th>Edad</th>
+                    <th>Ojo</th>
+                    <SurgSortTh col="cirujano" sort={surgerySort} onSort={toggleSurgerySort}>Cirujano</SurgSortTh>
+                    <SurgSortTh col="tipoCirugia" sort={surgerySort} onSort={toggleSurgerySort}>Tipo de Cirugía</SurgSortTh>
+                    <th>Duración</th>
+                    <SurgSortTh col="sucursal" sort={surgerySort} onSort={toggleSurgerySort}>Sucursal</SurgSortTh>
+                    <SurgSortTh col="estado" sort={surgerySort} onSort={toggleSurgerySort}>Estado</SurgSortTh>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={9} style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem', fontSize: '0.8rem' }}>Cargando...</td></tr>
+                  ) : sortedSurgeries.length === 0 ? (
+                    <tr><td colSpan={9} style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem', fontSize: '0.8rem' }}>Sin cirugías programadas</td></tr>
+                  ) : sortedSurgeries.map((s, i) => (
+                    <tr key={i}>
+                      <td><span style={{ fontWeight: 600, color: '#002725', fontVariantNumeric: 'tabular-nums' }}>{s.fecha} {s.hora}</span></td>
+                      <td>{s.paciente}</td>
+                      <td style={{ color: '#64748b' }}>{s.edad} años</td>
+                      <td><span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#147D78' }}>{s.ojo}</span></td>
+                      <td style={{ color: '#64748b' }}>{s.cirujano}</td>
+                      <td style={{ color: '#002725', fontWeight: 500 }}>{s.tipoCirugia}</td>
+                      <td style={{ color: '#64748b' }}>{s.duracionEstimada} min</td>
+                      <td>{s.sucursal}</td>
+                      <td>
+                        <span className={`status-pill ${
+                          s.estado === 'finalizada' ? 'atendido' :
+                          s.estado === 'programada' ? 'nuevo' :
+                          s.estado === 'en-curso' ? 'pendiente' : 'cancelado'
+                        }`}>
+                          ● {s.estado === 'programada' ? 'Programada' : 
+                             s.estado === 'finalizada' ? 'Finalizada' :
+                             s.estado === 'en-curso' ? 'En Curso' : 'Cancelada'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── CAJA VIEW ── */}
+        {view === 'caja' && (
+          <div>
+            {/* Advertencia destacada */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%)', 
+              border: '2px solid #fb923c', 
+              borderRadius: 16, 
+              padding: '1.5rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 12px rgba(251, 146, 60, 0.15)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ 
+                  width: 48, 
+                  height: 48, 
+                  background: '#fb923c', 
+                  borderRadius: 12, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <IconCash size={28} color="#fff" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#9a3412', marginBottom: '0.25rem' }}>
+                    ⚠️ MÓDULO DE DEMOSTRACIÓN
+                  </div>
+                  <div style={{ fontSize: '0.9rem', color: '#9a3412', lineHeight: 1.5 }}>
+                    Todos los montos y movimientos mostrados son <strong>datos de prueba generados automáticamente</strong>. 
+                    No representan información financiera real.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="chart-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem', flexShrink: 0 }}>
+                <div>
+                  <div className="chart-title">Movimientos de Caja - DATOS DE PRUEBA</div>
+                  <div className="chart-sub">{loading ? 'Cargando...' : `${cashMovements.length} movimientos en el período`}</div>
+                </div>
+              </div>
+              
+              {/* Resumen financiero */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', border: '1px solid #86efac', borderRadius: 12, padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                    <IconTrendingUp size={24} color="#16a34a" />
+                    <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600 }}>INGRESOS</div>
+                  </div>
+                  <div style={{ fontSize: '2.25rem', fontWeight: 700, color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}>
+                    ${cashMovements.filter(m => m.tipo === 'ingreso').reduce((sum, m) => sum + m.monto, 0).toLocaleString('es-AR')}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#15803d', marginTop: '0.25rem' }}>
+                    {cashMovements.filter(m => m.tipo === 'ingreso').length} movimientos
+                  </div>
+                </div>
+                
+                <div style={{ background: 'linear-gradient(135deg, #fef2f2, #fecaca)', border: '1px solid #fca5a5', borderRadius: 12, padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                    <IconTrendingDown size={24} color="#dc2626" />
+                    <div style={{ fontSize: '0.75rem', color: '#991b1b', fontWeight: 600 }}>EGRESOS</div>
+                  </div>
+                  <div style={{ fontSize: '2.25rem', fontWeight: 700, color: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>
+                    ${cashMovements.filter(m => m.tipo === 'egreso').reduce((sum, m) => sum + m.monto, 0).toLocaleString('es-AR')}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#991b1b', marginTop: '0.25rem' }}>
+                    {cashMovements.filter(m => m.tipo === 'egreso').length} movimientos
+                  </div>
+                </div>
+
+                <div style={{ background: 'linear-gradient(135deg, #f0f9ff, #bae6fd)', border: '1px solid #7dd3fc', borderRadius: 12, padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                    <IconCash size={24} color="#0284c7" />
+                    <div style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: 600 }}>BALANCE</div>
+                  </div>
+                  <div style={{ fontSize: '2.25rem', fontWeight: 700, color: '#0284c7', fontVariantNumeric: 'tabular-nums' }}>
+                    ${(
+                      cashMovements.filter(m => m.tipo === 'ingreso').reduce((sum, m) => sum + m.monto, 0) -
+                      cashMovements.filter(m => m.tipo === 'egreso').reduce((sum, m) => sum + m.monto, 0)
+                    ).toLocaleString('es-AR')}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: '#0369a1', marginTop: '0.25rem' }}>
+                    Período seleccionado
+                  </div>
+                </div>
+              </div>
+
+              {/* Gráficos de análisis */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                {/* Gráfico de tendencia */}
+                <div className="chart-card" style={{ margin: 0 }}>
+                  <div className="chart-title" style={{ fontSize: '0.9rem' }}>Tendencia Diaria</div>
+                  <div className="chart-sub" style={{ marginBottom: '0.5rem' }}>Ingresos vs Egresos</div>
+                  {cashTrend.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <AreaChart data={cashTrend} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="gi" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#16a34a" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="ge" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#dc2626" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0eded" />
+                        <XAxis dataKey="fecha" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                        <Tooltip 
+                          contentStyle={{ background: '#002725', border: 'none', borderRadius: 10, fontSize: 11 }} 
+                          itemStyle={{ color: '#dfefee' }}
+                          formatter={(value: number) => `$${value.toLocaleString('es-AR')}`}
+                        />
+                        <Area type="monotone" dataKey="ingresos" name="Ingresos" stroke="#16a34a" strokeWidth={2} fill="url(#gi)" />
+                        <Area type="monotone" dataKey="egresos" name="Egresos" stroke="#dc2626" strokeWidth={2} fill="url(#ge)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : <Empty loading={loading} />}
+                </div>
+
+                {/* Gráfico de métodos de pago */}
+                <div className="chart-card" style={{ margin: 0 }}>
+                  <div className="chart-title" style={{ fontSize: '0.9rem' }}>Ingresos por Método</div>
+                  <div className="chart-sub" style={{ marginBottom: '0.5rem' }}>Distribución de pagos</div>
+                  {cashByMethod.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie 
+                          data={cashByMethod} 
+                          cx="50%" 
+                          cy="50%" 
+                          innerRadius={50} 
+                          outerRadius={70} 
+                          paddingAngle={3} 
+                          dataKey="value"
+                        >
+                          {cashByMethod.map((_, i) => (
+                            <Cell key={i} fill={['#147D78', '#B8BD45', '#818cf8', '#fb923c'][i % 4]} />
+                          ))}
+                        </Pie>
+                        <Legend 
+                          iconType="circle" 
+                          iconSize={8} 
+                          wrapperStyle={{ fontSize: '0.75rem', color: '#64748b' }}
+                          formatter={(value) => value.charAt(0).toUpperCase() + value.slice(1)}
+                        />
+                        <Tooltip 
+                          contentStyle={{ background: '#002725', border: 'none', borderRadius: 10, fontSize: 11 }} 
+                          itemStyle={{ color: '#dfefee' }}
+                          formatter={(value: number) => `$${value.toLocaleString('es-AR')}`}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : <Empty loading={loading} />}
+                </div>
+              </div>
+
+              <div className="table-scroll">
+                <table className="turnos-table">
+                  <thead>
+                    <tr>
+                      <CashSortTh col="fecha" sort={cashSort} onSort={toggleCashSort}>Fecha / Hora</CashSortTh>
+                      <CashSortTh col="tipo" sort={cashSort} onSort={toggleCashSort}>Tipo</CashSortTh>
+                      <CashSortTh col="concepto" sort={cashSort} onSort={toggleCashSort}>Concepto</CashSortTh>
+                      <th>Paciente</th>
+                      <CashSortTh col="monto" sort={cashSort} onSort={toggleCashSort}>Monto</CashSortTh>
+                      <CashSortTh col="metodoPago" sort={cashSort} onSort={toggleCashSort}>Método</CashSortTh>
+                      <CashSortTh col="sucursal" sort={cashSort} onSort={toggleCashSort}>Sucursal</CashSortTh>
+                      <th>Comprobante</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr><td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem', fontSize: '0.8rem' }}>Cargando...</td></tr>
+                    ) : sortedCashMovements.length === 0 ? (
+                      <tr><td colSpan={8} style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem', fontSize: '0.8rem' }}>Sin movimientos registrados</td></tr>
+                    ) : sortedCashMovements.map((m, i) => (
+                      <tr key={i}>
+                        <td><span style={{ fontWeight: 600, color: '#002725', fontVariantNumeric: 'tabular-nums' }}>{m.fecha} {m.hora}</span></td>
+                        <td>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            background: m.tipo === 'ingreso' ? '#dcfce7' : '#fee2e2',
+                            color: m.tipo === 'ingreso' ? '#15803d' : '#991b1b',
+                          }}>
+                            {m.tipo === 'ingreso' ? '▲ INGRESO' : '▼ EGRESO'}
+                          </span>
+                        </td>
+                        <td style={{ color: '#002725' }}>{m.concepto}</td>
+                        <td style={{ color: '#64748b' }}>{m.paciente || '—'}</td>
+                        <td style={{ 
+                          fontWeight: 700, 
+                          fontSize: '1rem',
+                          color: m.tipo === 'ingreso' ? '#16a34a' : '#dc2626',
+                          fontVariantNumeric: 'tabular-nums'
+                        }}>
+                          ${m.monto.toLocaleString('es-AR')}
+                        </td>
+                        <td style={{ color: '#64748b', textTransform: 'capitalize' }}>{m.metodoPago}</td>
+                        <td>{m.sucursal}</td>
+                        <td style={{ color: '#94a3b8', fontSize: '0.85rem', fontVariantNumeric: 'tabular-nums' }}>
+                          {m.comprobante || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
@@ -621,6 +1131,18 @@ function SortTh<C extends string>({
 
 function DocSortTh({ col, sort, onSort, children }: {
   col: DocSortCol; sort: SortState<DocSortCol>; onSort: (c: DocSortCol) => void; children: React.ReactNode;
+}) {
+  return <SortTh col={col} sort={sort} onSort={onSort}>{children}</SortTh>;
+}
+
+function SurgSortTh({ col, sort, onSort, children }: {
+  col: SurgerySortCol; sort: SortState<SurgerySortCol>; onSort: (c: SurgerySortCol) => void; children: React.ReactNode;
+}) {
+  return <SortTh col={col} sort={sort} onSort={onSort}>{children}</SortTh>;
+}
+
+function CashSortTh({ col, sort, onSort, children }: {
+  col: CashSortCol; sort: SortState<CashSortCol>; onSort: (c: CashSortCol) => void; children: React.ReactNode;
 }) {
   return <SortTh col={col} sort={sort} onSort={onSort}>{children}</SortTh>;
 }

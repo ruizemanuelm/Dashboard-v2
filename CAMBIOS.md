@@ -91,13 +91,111 @@ Sistema completo de generación de datos de prueba:
 - 8 médicos demo
 - 8 tipos de consultas oftalmológicas
 
-### 2. **.env.example** 🆕
-Archivo de ejemplo indicando que NO se requieren variables de entorno en modo demo
+### 2. **src/lib/mockModules.ts** 🆕
+Sistema de datos para módulos adicionales:
+- **Cirugías**: 50+ cirugías con datos realistas
+  - 10 pacientes con edades reales
+  - 4 cirujanos especializados
+  - 8 tipos de cirugías oftalmológicas con duración
+  - Estados: programada, finalizada, en-curso, cancelada
+  - Información de ojo (OD, OI, AO)
+- **Caja**: 200+ movimientos financieros
+  - Ingresos y egresos con montos realistas
+  - 10 conceptos de ingreso, 8 de egreso
+  - Métodos de pago: efectivo, tarjeta, transferencia, QR
+  - Comprobantes generados automáticamente
+  - **Advertencias claras de datos de prueba**
 
 ### 3. **README.md** 🆕
 Documentación completa del proyecto demo con:
-- Características principales
+- Características principales incluyendo módulos de Cirugías y Caja
 - Instrucciones de instalación
+- Descripción de funcionalidades
+- Estructura del proyecto
+- Tecnologías utilizadas
+
+### 4. **CAMBIOS.md** 🆕
+Archivo de ejemplo indicando que NO se requieren variables de entorno en modo demo
+
+### 2. **.env.example** 🆕
+Documentación completa del proyecto demo con:
+- Características principales
+- I
+
+## 🆕 ACTUALIZACIÓN: Módulos Adicionales
+
+### Fecha: 2026-07-23
+
+Se agregaron dos nuevos módulos completos al sistema demo:
+
+#### 📋 Módulo de Cirugías
+**Funcionalidades:**
+- Vista completa de cirugías programadas y realizadas
+- KPIs por estado: Programadas, Finalizadas, En Curso, Canceladas
+- Tabla detallada con información de:
+  - Fecha y hora
+  - Paciente, edad y DNI
+  - Ojo a operar (OD/OI/AO)
+  - Cirujano
+  - Tipo de cirugía (facoemulsificación, pterigión, vitrectomía, etc.)
+  - Duración estimada
+  - Sucursal
+  - Estado actualizado
+- Ordenamiento por cualquier columna
+- Datos completamente ficticios pero realistas
+
+**Datos generados:**
+- ~50 cirugías por período de 30 días
+- Cirugías oftalmológicas reales con duraciones apropiadas
+- Distribución de estados ponderada
+- 4 cirujanos especializados
+
+#### 💰 Módulo de Caja
+**Funcionalidades:**
+- **ADVERTENCIA DESTACADA** de datos de prueba en múltiples lugares
+- Banner llamativo indicando que los montos NO son reales
+- Resumen financiero con:
+  - Total de ingresos (con icono verde)
+  - Total de egresos (con icono rojo)
+  - Balance neto (con icono azul)
+- Tabla detallada de movimientos:
+  - Fecha y hora
+  - Tipo (Ingreso/Egreso) con etiquetas de color
+  - Concepto detallado
+  - Paciente (cuando aplica)
+  - Monto en formato argentino ($)
+  - Método de pago
+  - Sucursal
+  - Número de comprobante
+- Ordenamiento por cualquier columna
+- Vista filtrada por rango de fechas
+
+**Datos generados:**
+- ~200 movimientos por período de 30 días
+- Montos realistas ($5,000 - $85,000 ingresos, $2,000 - $52,000 egresos)
+- 10 conceptos de ingreso (consultas, cirugías, estudios)
+- 8 conceptos de egreso (insumos, servicios, sueldos)
+- 4 métodos de pago (efectivo, tarjeta, transferencia, QR)
+- Comprobantes con formato argentino
+
+**Seguridad de la demo:**
+- Banner de advertencia con gradiente naranja
+- Icono de alerta en el header
+- Etiqueta permanente "DATOS DE PRUEBA - NO REALES"
+- Color distintivo (naranja) en toda la sección
+
+#### 🎨 Mejoras de UI
+- Navegación por módulos movida al sidebar
+- Botones con indicadores de color para cada módulo:
+  - Dashboard: Verde azulado (#147D78)
+  - Médicos: Verde lima (#B8BD45)
+  - Cirugías: Morado (#818cf8)
+  - Caja: Naranja (#fb923c)
+- Título dinámico según módulo activo
+- Eliminados tabs de vista en el header
+- Mejora en la jerarquía visual
+
+---nstrucciones de instalación
 - Descripción de funcionalidades
 - Estructura del proyecto
 - Tecnologías utilizadas
@@ -137,11 +235,14 @@ Este archivo con el detalle de todas las modificaciones
 3. **Tablas interactivas**:
    - Admisiones con ordenamiento por columnas
    - Estadísticas de médicos con vista expandible
+   - **Cirugías programadas con detalle completo**
+   - **Movimientos de caja con montos de prueba**
 4. **Filtros funcionales**:
    - Selector de rango de fechas personalizado
    - Vista por sucursal individual o general
-   - Cambio entre vista Dashboard y Médicos
+   - Navegación entre 4 módulos: Dashboard, Médicos, Cirugías, Caja
 5. **Datos dinámicos**: Los datos se generan automáticamente según el rango de fechas seleccionado
+6. **Sistema de advertencias**: Indicaciones claras en módulo de Caja sobre datos de prueba
 
 ---
 
@@ -182,5 +283,34 @@ http://localhost:3000
 ---
 
 **Fecha de conversión**: 2026-07-23  
-**Versión demo**: 1.0  
-**Estado**: ✅ Completado y probado
+**Última actualización**: 2026-07-23 (Agregados módulos Cirugías y Caja + Menú responsive)  
+**Versión demo**: 3.0  
+**Estado**: ✅ Completado y probado con 4 módulos funcionales + menú de navegación responsive
+
+---
+
+## 🆕 ÚLTIMA ACTUALIZACIÓN (v3.0) - Menú y Responsive
+
+### Fecha: 2026-07-23
+
+Se agregaron mejoras significativas de navegación y diseño responsive:
+
+#### 🎯 Menú Inicial
+- Pantalla de bienvenida con tarjetas visuales para cada módulo
+- Diseño moderno con iconos y colores distintivos
+- Logo "Sistema Demo" clickeable que regresa al menú
+- Navegación intuitiva y animaciones hover
+
+#### 📱 Diseño Responsive
+- Botón hamburguesa y sidebar deslizante en móvil
+- Grid adaptativo que se reorganiza según pantalla
+- Tablas con scroll horizontal optimizado
+- Optimizaciones completas para tablets y smartphones
+
+#### 📊 Gráficos en Módulo Caja
+- Gráfico de tendencia diaria (ingresos vs egresos)
+- Gráfico de dona con distribución por método de pago
+- Tooltips con formato de moneda argentina
+- Grid responsive de gráficos
+
+---
