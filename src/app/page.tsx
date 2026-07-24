@@ -992,7 +992,7 @@ function DashboardContent() {
                         <Tooltip 
                           contentStyle={{ background: '#002725', border: 'none', borderRadius: 10, fontSize: 11 }} 
                           itemStyle={{ color: '#dfefee' }}
-                          formatter={(value: number) => `$${value.toLocaleString('es-AR')}`}
+                          formatter={(value: number | undefined) => value !== undefined ? `$${value.toLocaleString('es-AR')}` : ''}
                         />
                         <Area type="monotone" dataKey="ingresos" name="Ingresos" stroke="#16a34a" strokeWidth={2} fill="url(#gi)" />
                         <Area type="monotone" dataKey="egresos" name="Egresos" stroke="#dc2626" strokeWidth={2} fill="url(#ge)" />
@@ -1025,12 +1025,12 @@ function DashboardContent() {
                           iconType="circle" 
                           iconSize={8} 
                           wrapperStyle={{ fontSize: '0.75rem', color: '#64748b' }}
-                          formatter={(value) => value.charAt(0).toUpperCase() + value.slice(1)}
+                          formatter={(value: string) => value ? value.charAt(0).toUpperCase() + value.slice(1) : ''}
                         />
                         <Tooltip 
                           contentStyle={{ background: '#002725', border: 'none', borderRadius: 10, fontSize: 11 }} 
                           itemStyle={{ color: '#dfefee' }}
-                          formatter={(value: number) => `$${value.toLocaleString('es-AR')}`}
+                          formatter={(value: number | undefined) => value !== undefined ? `$${value.toLocaleString('es-AR')}` : ''}
                         />
                       </PieChart>
                     </ResponsiveContainer>
